@@ -1,0 +1,52 @@
+/* Run after the real page loads: runSRWRedesignSmoke({layout:true}). */
+window.runSRWRedesignSmoke = function(options={}) {
+  const assert=(ok,message)=>{if(!ok)throw new Error(message)};
+  const reset=()=>document.querySelector('#reset-filters').click();
+  const change=el=>el.dispatchEvent(new Event('change',{bubbles:true}));
+  const results={};
+  assert(window.SRWSignatureView,'Evidence did not load');
+  reset();
+  assert(window.SRWSignatureView.matching===621,'Not all 621 variants are present');
+  assert(window.SRWSignatureView.eligible===48&&window.SRWSignatureView.frontier===3,'Frontier changed during redesign');
+  assert(document.querySelectorAll('.directory tbody tr').length===275,'Directory lost records');
+  const city=document.querySelector('#location-filter'),cuisine=document.querySelector('#cuisine-filter');
+  city.value='Bellevue';change(city);cuisine.value='japanese';change(cuisine);
+  assert(window.SRWSignatureView.shown===2,'Combined filters should show two distinct menus');
+  const b=document.querySelector('[data-offer-toggle]'),card=b.closest('[data-offer]');
+  const detail=card.querySelector('.offer-detail');
+  if(options.layout)assert(getComputedStyle(detail).display==='none','Card is not compact initially');
+  b.click();
+  assert(b.getAttribute('aria-expanded')==='true'&&card.classList.contains('is-open'),'Card disclosure failed');
+  for(const id of b.getAttribute('aria-controls').split(' '))assert(document.getElementById(id),'Missing disclosure target');
+  if(options.layout)assert(getComputedStyle(detail).display!=='none','Expanded menu is still hidden');
+  b.click();assert(b.getAttribute('aria-expanded')==='false','Card collapse failed');
+  reset();
+  const ordinaryQuery=document.querySelector('#search');
+  ordinaryQuery.value=document.querySelector('.directory tbody tr a').textContent.trim();
+  ordinaryQuery.dispatchEvent(new Event('input',{bubbles:true}));
+  assert(window.SRWSignatureView.matching>0,'Ordinary restaurant search failed');
+  reset();
+  const all=document.querySelector('#signature-all');
+  reset();all.checked=true;change(all);
+  assert(document.querySelectorAll('#signature-table tbody tr').length===window.SRWSignatureView.unique_matching&&window.SRWSignatureView.member_count===621,'Unknown offers disappeared during grouping');
+  const q=document.querySelector('#search');q.value='does-not-exist-xyz';q.dispatchEvent(new Event('input',{bubbles:true}));
+  assert(!document.querySelector('#signature-empty').hidden,'Empty-state message missing');
+  reset();city.value='Bellevue';change(city);cuisine.value='japanese';change(cuisine);
+  const plotLink=document.querySelector('#signature-chart svg a');
+  const target=document.getElementById(decodeURIComponent(plotLink.getAttribute('href').slice(1)));
+  assert(target,'Graph target broken');
+  plotLink.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));
+  assert(target.classList.contains('is-open'),'Graph link did not reveal the actual menu');
+  document.querySelector('.nav-links a[href="#all"]').click();
+  assert(document.querySelector('#directory').open,'Directory navigation did not reveal listings');
+  document.querySelector('#directory').open=false;
+  if(options.layout){
+    assert(document.documentElement.scrollWidth<=innerWidth+1,'Page has horizontal overflow');
+    const rect=document.querySelector('.offer-card').getBoundingClientRect();
+    assert(rect.width<=innerWidth,'Offer card wider than screen');
+    results.viewport={width:innerWidth,pageWidth:document.documentElement.scrollWidth,cardWidth:rect.width};
+  }
+  results.passed=['counts/frontier unchanged','combined filters','card expand/collapse','ordinary search','621 audit toggle','empty state','plot-to-menu disclosure','directory navigation'];
+  results.final=window.SRWSignatureView;
+  return results;
+};
